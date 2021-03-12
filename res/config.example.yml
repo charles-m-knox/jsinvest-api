@@ -1,0 +1,21 @@
+---
+
+fusionAuthHost: http://fusionauth:9011
+fusionAuthPublicHost: http://localhost:9011
+fusionAuthAPIKey: OCnxf7Vf40WzZM_qg1ut1-Oy-gFaQsriypp4MLRzaDCyZ96kXKlibk5x
+fusionAuthAppID: 39624626-b0b0-46d6-9902-3967418ee1c5
+fusionAuthOauthRedirectURL: http://localhost:8080/oauth-callback
+fusionAuthOauthClientID: 39624626-b0b0-46d6-9902-3967418ee1c5
+fusionAuthOauthClientSecret: JJ_WwJXr7o9AFuQ29mZQEfsxCXdbQn0FIbVjBiMtJH4
+
+bindAddr: 0.0.0.0
+bindPort: 8080
+bindPortExternal: 8080
+
+postgresUser: postgres
+postgresPass: postgres
+postgresHost: fa-pgsqldb
+postgresPort: 5432
+postgresDbName: postgres
+postgresOptions: sslmode=disable
+# postgresOptions: sslmode=verify-full

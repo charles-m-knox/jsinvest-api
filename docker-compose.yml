@@ -1,0 +1,34 @@
+version: '3'
+networks:
+  default:
+    external:
+      name: fusionauth_network_stack
+services:
+  fa-middleware:
+    container_name: fa-middleware
+    image: fa-middleware:latest
+    ports:
+      - "${BIND_ADDR}:${BIND_PORT_EXTERNAL}:${BIND_PORT}"
+    environment:
+      - BIND_ADDR=${BIND_ADDR}
+      - BIND_PORT=${BIND_PORT}
+      - BIND_PORT_EXTERNAL=${BIND_PORT_EXTERNAL}
+    volumes:
+      - ./res/config.yml:/res/config.yml:ro
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200k"
+        max-file: "10"
+  fa-pgsqldb:
+    image: postgres:alpine
+    environment:
+      - PGDATA=/var/lib/postgresql/data/pgdata
+      - POSTGRES_USER=${MIDDLEWARE_POSTGRES_USER}
+      - POSTGRES_PASSWORD=${MIDDLEWARE_POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:5432:5432"
+    restart: unless-stopped
+    volumes:
+      - ./data/fa-pgsqldb:/var/lib/postgresql/data
