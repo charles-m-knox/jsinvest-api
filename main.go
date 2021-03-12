@@ -77,15 +77,6 @@ func main() {
 		})
 	})
 	r.GET("/login", func(c *gin.Context) {
-		// url := fmt.Sprintf(
-		// 	"%v/oauth2/authorize?client_id=%v&redirect_uri=%v&response_type=code&code_challenge=%v&code_challenge_method=%v",
-		// 	conf.FusionAuthHost,
-		// 	conf.FusionAuthAppID,
-		// 	conf.FusionAuthOauthRedirectURL,
-		// 	codeChallenge,
-		// 	"S256",
-		// )
-
 		url := oauthc.AuthCodeURL(
 			oauthstr,
 			oauth2.SetAuthURLParam("response_type", "code"),

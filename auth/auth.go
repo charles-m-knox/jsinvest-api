@@ -14,7 +14,6 @@ import (
 
 // Login logs in the user using the FusionAuth Go client library
 func Login(conf config.Config, fa *fusionauth.FusionAuthClient, oauthState models.OauthState) (user fusionauth.User, err error) {
-	log.Printf("code verifier: %v", oauthState.Verifier)
 	token, oauthError, err := fa.ExchangeOAuthCodeForAccessTokenUsingPKCE(
 		oauthState.Code,
 		conf.FusionAuthOauthClientID,

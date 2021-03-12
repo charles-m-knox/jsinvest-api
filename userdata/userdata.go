@@ -1,17 +1,15 @@
 package userdata
 
 import (
-	"database/sql"
+	"context"
 	"encoding/json"
 	"fa-middleware/config"
 	"fmt"
-	"log"
 
-	_ "github.com/lib/pq"
+	"github.com/jackc/pgx/v4"
 )
 
 func SetUserData(conf config.Config, id string, userData interface{}) error {
-	// https://pkg.go.dev/github.com/lib/pq?utm_source=godoc#hdr-Bulk_imports
 	connStr := fmt.Sprintf(
 		"postgres://%v:%v@%v:%v/%v?%v",
 		conf.PostgresUser,
@@ -21,43 +19,29 @@ func SetUserData(conf config.Config, id string, userData interface{}) error {
 		conf.PostgresDBName,
 		conf.PostgresOptions,
 	)
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		return fmt.Errorf("failed to connect to postgres: %v", err.Error())
-	}
 
 	userDataBytes, err := json.Marshal(userData)
 	if err != nil {
 		return fmt.Errorf("failed to marshal user data: %v", err.Error())
 	}
 
-	// Work in progress: doesn't quite work
-	rows, err := db.Query(
-		`CREATE TABLE IF NOT EXISTS userdata  (
-			id VARCHAR ( 36 ) PRIMARY KEY,
-			user_data_json TEXT
-		);`,
-	)
+	// https://github.com/jackc/pgx#example-usage
+	conn, err := pgx.Connect(context.Background(), connStr)
 	if err != nil {
-		return fmt.Errorf("failed to perform create table query: %v", err.Error())
+		return fmt.Errorf("unable to connect to database: %v", err.Error())
 	}
+	defer conn.Close(context.Background())
 
-	log.Printf("create table rows: %v", rows)
-
-	// Work in progress: doesn't quite work
-	rows, err = db.Query(
-		fmt.Sprintf(
-			`INSERT INTO userdata(id, user_data_json) VALUES(%v, %v) RETURNING id;`,
-			id,
-			string(userDataBytes),
-		),
+	_, err = conn.Exec(
+		context.Background(),
+		"insert into userdata(id, user_data_json) values($1, $2) on conflict (id) do update set user_data_json = EXCLUDED.user_data_json",
+		id,
+		string(userDataBytes),
 	)
-	if err != nil {
-		return fmt.Errorf("failed to insert rows: %v", err.Error())
-	}
 
-	log.Printf("insert rows: %v", rows)
+	if err != nil {
+		return fmt.Errorf("failed to upsert id %v: %v", id, err.Error())
+	}
 
 	return nil
-
 }

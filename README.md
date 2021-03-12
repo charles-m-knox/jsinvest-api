@@ -2,6 +2,18 @@
 
 This repository contains the building blocks for a FusionAuth-based middleware layer, written in Go.
 
+## Table of Contents
+
+- [fa-middleware](#fa-middleware)
+  - [Table of Contents](#table-of-contents)
+  - [Getting started](#getting-started)
+  - [References](#references)
+  - [Fusion Auth](#fusion-auth)
+    - [Login directly](#login-directly)
+  - [Managing the database](#managing-the-database)
+  - [Needed features](#needed-features)
+  - [Schema discussion](#schema-discussion)
+
 ## Getting started
 
 For the first time:
@@ -33,7 +45,9 @@ These are the basic steps to get this middleware up and running. Up next is to g
 * https://fusionauth.io/docs/v1/tech/example-apps/go/
 * https://fusionauth.io/blog/2020/06/17/building-cli-app-with-device-grant-and-golang/
 
-## Fusion Auth Example
+## Fusion Auth
+
+Examples relating to FusionAuth directly.
 
 ### Login directly
 
@@ -42,3 +56,40 @@ https://fusionauth.io/docs/v1/tech/apis/login/#authenticate-a-user
 ```bash
 curl -vvv -X POST -H "Content-Type: application/json" -d '{"loginId":"test2@site.com","password":"password1234","applicationId":"4ef26681-80e6-4c6e-895f-3ef45321a2cd","noJWT":false,"ipAddress":"192.168.0.10"}' http://localhost:9011/api/login
 ```
+
+## Managing the database
+
+Using `adminer`, which is included in the docker compose file, you can navigate to `http://localhost:9015` and log in to the postgres db.
+
+## Needed features
+
+* Support user management API endpoints: https://fusionauth.io/docs/v1/tech/apis/users/#create-a-user
+  * Password reset API endpoint, or figure out how to do it in FusionAuth
+  * Change password API endpoint, or figure out how to do it in FusionAuth
+  * Updating a user's info https://fusionauth.io/docs/v1/tech/apis/users/#update-a-user
+* Multi-tenancy - multiple apps should be able to interface via this middleware into a single FusionAuth instance
+* Stripe integration - complements multi-tenancy by enabling payments to be tracked across different projects
+
+## Schema discussion
+
+FusionAuth does offer a "user data" key-value storage, which is great, but I think it's more important to have a postgresql database that is dedicated to this purpose. We can guarantee scalable queries instead of having to deal with an extra API.
+
+There are two (or three) critical identifiers that need to be handled:
+
+* The Stripe customer id, such as `cus_J6Tc1xnIxNW5BG`
+* The FusionAuth user id, such as `370df073-c2e3-41f9-a64f-32866a48b972`
+* The tenant ID, for multi-tenancy scenarios where we have many apps landed on a single FusionAuth instance, such as `cbb8cd3a-aed7-413c-a65f-40acf4034fc3`
+
+These associations can be stored in a few locations:
+
+* FusionAuth can store the Stripe customer ID as a user data key/value pair
+* A customer in Stripe can have arbitrary metadata, so we should put the tenant ID and user ID there
+* All three can be stored in a local postgres DB
+
+It might be smartest to store all three of these for the sake of ensuring that the data is always viewable on each platform - Stripe, FusionAuth, and queryable locally without having to hammer away at a 3rd party API (FusionAuth won't be third party since it's local, but the API itself is subject to third party design).
+
+| `id`                                   | `tenant_id`                            | `stripe_cust_id`     |
+| -------------------------------------- | -------------------------------------- | -------------------- |
+| `370df073-c2e3-41f9-a64f-32866a48b972` | `cbb8cd3a-aed7-413c-a65f-40acf4034fc3` | `cus_J6Tc1xnIxNW5BG` |
+|                                        |                                        |                      |
+|                                        |                                        |                      |

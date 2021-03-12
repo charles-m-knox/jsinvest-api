@@ -32,3 +32,10 @@ services:
     restart: unless-stopped
     volumes:
       - ./data/fa-pgsqldb:/var/lib/postgresql/data
+  adminer:
+    image: adminer
+    restart: always
+    environment:
+      - ADMINER_DEFAULT_SERVER=fa-pgsqldb
+    ports:
+      - "127.0.0.1:9015:8080"
