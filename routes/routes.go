@@ -51,23 +51,26 @@ func OauthCallback(c *gin.Context, conf config.Config, fa *fusionauth.FusionAuth
 	err := c.Request.ParseForm()
 	if err != nil {
 		log.Printf("oauth-callback failed to process form: %v", err.Error())
-		c.JSON(403, models.OauthState{})
+		c.Data(403, "text/plain", []byte("Unauthorized"))
 		return
 	}
 
 	receivedOauthState, ok := c.Request.Form["state"]
 	if !ok {
-		c.JSON(403, models.OauthState{})
+		log.Printf("login: no state")
+		c.Data(403, "text/plain", []byte("Unauthorized"))
 		return
 	}
 	receivedOauthCode, ok := c.Request.Form["code"]
 	if !ok {
-		c.JSON(403, models.OauthState{})
+		log.Printf("login: no code")
+		c.Data(403, "text/plain", []byte("Unauthorized"))
 		return
 	}
 
 	if len(receivedOauthState) != 1 || len(receivedOauthCode) != 1 {
-		c.JSON(403, models.OauthState{})
+		log.Printf("login: didn't receive 1 state and 1 code")
+		c.Data(403, "text/plain", []byte("Unauthorized"))
 		return
 	}
 
@@ -82,7 +85,7 @@ func OauthCallback(c *gin.Context, conf config.Config, fa *fusionauth.FusionAuth
 	user, jwt, err := auth.Login(conf, fa, oauths)
 	if err != nil {
 		log.Printf("err login: %v", err.Error())
-		c.JSON(403, models.OauthState{})
+		c.Data(403, "text/plain", []byte("Unauthorized"))
 		return
 	}
 

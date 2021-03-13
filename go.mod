@@ -14,4 +14,6 @@ require (
 	github.com/stripe/stripe-go/v72 v72.37.0 // indirect
 	github.com/thanhpk/randstr v1.0.4
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
+	gopkg.in/yaml.v2 v2.2.8
+	honnef.co/go/tools v0.0.1-2019.2.3
 )

@@ -20,57 +20,79 @@ import (
 
 func main() {
 	// load config
-	conf, err := config.LoadConfig()
+	// conf, err := config.LoadConfig()
+	// if err != nil {
+	// 	log.Fatalf("failed to load config: %v", err.Error())
+	// }
+
+	conf, err := config.LoadConfigYaml()
 	if err != nil {
-		log.Fatalf("failed to load config: %v", err.Error())
+		log.Fatalf("failed to load config2: %v", err.Error())
 	}
 
-	// initialize oauth state
-	oauthstr := randstr.Hex(16)
-	log.Printf("oauthstr: %v", oauthstr)
+	for i, app := range conf.Applications {
+		// initialize oauth state
+		conf.Applications[i].OauthStr = randstr.Hex(16)
 
-	// initialize the code verifier for pkce
-	codeVerif, err := cv.CreateCodeVerifier()
-	if err != nil {
-		log.Fatalf("failed to initialize code verifier: %v", err.Error())
-	}
-	// Create code_challenge with S256 method
-	codeChallenge := codeVerif.CodeChallengeS256()
-	log.Printf("code challenge: %v", codeChallenge)
+		// initialize the code verifier for pkce
+		codeVerif, err := cv.CreateCodeVerifier()
+		if err != nil {
+			log.Fatalf("failed to initialize code verifier: %v", err.Error())
+		}
+		conf.Applications[i].CodeVerif = codeVerif.String()
 
-	// http client with custom options for usage with fusionauth
-	hc := &http.Client{
-		Timeout: time.Second * 10,
-	}
+		// Create code_challenge with S256 method
+		conf.Applications[i].CodeChallenge = codeVerif.CodeChallengeS256()
 
-	faURL, err := url.Parse(conf.FusionAuthHost)
-	if err != nil {
-		log.Fatalf("failed to parse fusionauth url: %v", err.Error())
-	}
+		faURL, err := url.Parse(app.FusionAuthHost)
+		if err != nil {
+			log.Fatalf("failed to parse fusionauth url: %v", err.Error())
+		}
 
-	// get the fusionauth client
-	fa := fusionauth.NewClient(
-		hc,
-		faURL,
-		conf.FusionAuthAPIKey,
-	)
+		// http client with custom options for usage with fusionauth
+		hc := &http.Client{
+			Timeout: time.Second * 10,
+		}
 
-	// build out the oauth2 config
-	oauthc := &oauth2.Config{
-		RedirectURL:  conf.FusionAuthOauthRedirectURL,
-		ClientID:     conf.FusionAuthOauthClientID,
-		ClientSecret: conf.FusionAuthOauthClientSecret,
-		Scopes:       []string{"openid"},
-		Endpoint: oauth2.Endpoint{
-			AuthURL:   fmt.Sprintf("%v/oauth2/authorize", conf.FusionAuthPublicHost),
-			TokenURL:  fmt.Sprintf("%v/oauth2/token", conf.FusionAuthPublicHost),
-			AuthStyle: oauth2.AuthStyleInHeader,
-		},
+		// get the fusionauth client
+		conf.Applications[i].FusionAuthClient = fusionauth.NewClient(
+			hc,
+			faURL,
+			app.FusionAuthAPIKey,
+		)
+
+		// build out the oauth2 config
+		conf.Applications[i].OauthConfig = &oauth2.Config{
+			RedirectURL:  app.FusionAuthOauthRedirectURL,
+			ClientID:     app.FusionAuthOauthClientID,
+			ClientSecret: app.FusionAuthOauthClientSecret,
+			Scopes:       []string{"openid"},
+			Endpoint: oauth2.Endpoint{
+				AuthURL:   fmt.Sprintf("%v/oauth2/authorize", app.FusionAuthPublicHost),
+				TokenURL:  fmt.Sprintf("%v/oauth2/token", app.FusionAuthPublicHost),
+				AuthStyle: oauth2.AuthStyleInHeader,
+			},
+		}
+
+		conf.Applications[i].AuthCodeURL = conf.Applications[i].OauthConfig.AuthCodeURL(
+			conf.Applications[i].OauthStr,
+			oauth2.SetAuthURLParam("response_type", "code"),
+			oauth2.SetAuthURLParam("code_challenge", conf.Applications[i].CodeChallenge),
+			oauth2.SetAuthURLParam("code_challenge_method", "S256"),
+		)
 	}
 
 	// start up the api server
 	r := gin.Default()
 	r.GET("/ping", func(c *gin.Context) {
+		log.Printf("host: %v", c.Request.Host)
+		log.Printf("remoteaddr: %v", c.Request.RemoteAddr)
+		log.Printf("referer: %v", c.Request.Referer())
+		app, ok := conf.GetConfigForDomain(c.Request.Host)
+		if !ok {
+			c.Data(404, "text/plain", []byte("not found"))
+		}
+		log.Printf("matched app id: %v", app.FusionAuthAppID)
 		c.JSON(200, gin.H{
 			"message": "pong",
 		})
@@ -86,37 +108,41 @@ func main() {
 		c.Data(200, "text/html", []byte(htmlstr))
 	})
 	r.GET("/auth/login", func(c *gin.Context) {
-		url := oauthc.AuthCodeURL(
-			oauthstr,
-			oauth2.SetAuthURLParam("response_type", "code"),
-			oauth2.SetAuthURLParam("code_challenge", codeChallenge),
-			oauth2.SetAuthURLParam("code_challenge_method", "S256"),
-		)
-		// https://github.com/gin-gonic/examples/blob/master/basic/main.go
-		// redirect to the login page
+		app, ok := conf.GetConfigForDomain(c.Request.Host)
+		if !ok {
+			c.Data(404, "text/plain", []byte("not found"))
+		}
 		c.Redirect(
 			301,
-			url,
+			app.AuthCodeURL,
 		)
 	})
-	// Not needed - instead, use /logout (directly on the fusionauth host)
-	// r.GET("/auth/logout", func(c *gin.Context) {
-	// 	routes.GetAuthLogout(c, conf, fa)
-	// })
 	r.GET("/api/currentuser/email", func(c *gin.Context) {
-		routes.GetAPICurrentUserEmail(c, conf, fa)
+		app, ok := conf.GetConfigForDomain(c.Request.Host)
+		if !ok {
+			c.Data(404, "text/plain", []byte("not found"))
+		}
+		routes.GetAPICurrentUserEmail(c, app, app.FusionAuthClient)
 	})
 	r.GET("/pages/welcome", func(c *gin.Context) {
-		routes.LoggedIn(c, conf, fa)
+		app, ok := conf.GetConfigForDomain(c.Request.Host)
+		if !ok {
+			c.Data(404, "text/plain", []byte("not found"))
+		}
+		routes.LoggedIn(c, app, app.FusionAuthClient)
 	})
 	r.GET("/auth/oauth-cb", func(c *gin.Context) {
-		routes.OauthCallback(c, conf, fa, codeVerif.String())
+		app, ok := conf.GetConfigForDomain(c.Request.Host)
+		if !ok {
+			c.Data(404, "text/plain", []byte("not found"))
+		}
+		routes.OauthCallback(c, app, app.FusionAuthClient, app.CodeVerif)
 	})
 	err = r.Run(
 		fmt.Sprintf(
 			"%v:%v",
-			conf.BindAddr,
-			conf.BindPort,
+			conf.Global.BindAddr,
+			conf.Global.BindPort,
 		),
 	)
 	if err != nil {

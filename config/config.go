@@ -2,40 +2,86 @@ package config
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
 
+	"github.com/FusionAuth/go-client/pkg/fusionauth"
 	viper "github.com/spf13/viper"
+	"golang.org/x/oauth2"
+	"gopkg.in/yaml.v2"
 )
 
 const (
 	ConfigFile = "config.yml"
 )
 
+type GlobalConfig struct {
+	BindAddr         string `yaml:"bindAddr"`
+	BindPort         int    `yaml:"bindPort"`
+	BindPortExternal int    `yaml:"bindPortExternal"`
+}
+
 type Config struct {
-	FusionAuthHost              string `yaml:"fusionAuthHost"`       // "http://fusionauth:9011"
-	FusionAuthPublicHost        string `yaml:"fusionAuthPublicHost"` // "http://localhost:9011"
-	FusionAuthAPIKey            string `yaml:"fusionAuthAPIKey"`
-	FusionAuthAppID             string `yaml:"fusionAuthAppID"`
-	FusionAuthOauthRedirectURL  string `yaml:"fusionAuthOauthRedirectURL"`
-	FusionAuthOauthClientID     string `yaml:"fusionAuthOauthClientID"`
-	FusionAuthOauthClientSecret string `yaml:"fusionAuthOauthClientSecret"`
-	FusionAuthTenantID          string `yaml:"fusionAuthTenantID"`
-	BindAddr                    string `yaml:"bindAddr"`
-	BindPort                    int    `yaml:"bindPort"`
-	BindPortExternal            int    `yaml:"bindPortExternal"`
-	PostgresUser                string `yaml:"postgresUser"`
-	PostgresPass                string `yaml:"postgresPass"`
-	PostgresHost                string `yaml:"postgresHost"`
-	PostgresPort                string `yaml:"postgresPort"`
-	PostgresDBName              string `yaml:"postgresDbName"`
-	PostgresOptions             string `yaml:"postgresOptions"`
-	JWTCookieDomain             string `yaml:"jwtCookieDomain"`
-	JWTCookieMaxAgeSeconds      int    `yaml:"jwtCookieMaxAgeSeconds"`
-	JWTCookieSetSecure          bool   `yaml:"jwtCookieSetSecure"` // sets the "secure" flag for the jwt cookie
-	JWTCookieName               string `yaml:"jwtCookieName"`      // sets the "secure" flag for the jwt cookie
+	Domain                      string                       `yaml:"domain"`
+	FusionAuthHost              string                       `yaml:"fusionAuthHost"`       // "http://fusionauth:9011"
+	FusionAuthPublicHost        string                       `yaml:"fusionAuthPublicHost"` // "http://localhost:9011"
+	FusionAuthAPIKey            string                       `yaml:"fusionAuthAPIKey"`
+	FusionAuthAppID             string                       `yaml:"fusionAuthAppID"`
+	FusionAuthOauthRedirectURL  string                       `yaml:"fusionAuthOauthRedirectURL"`
+	FusionAuthOauthClientID     string                       `yaml:"fusionAuthOauthClientID"`
+	FusionAuthOauthClientSecret string                       `yaml:"fusionAuthOauthClientSecret"`
+	FusionAuthTenantID          string                       `yaml:"fusionAuthTenantID"`
+	PostgresUser                string                       `yaml:"postgresUser"`
+	PostgresPass                string                       `yaml:"postgresPass"`
+	PostgresHost                string                       `yaml:"postgresHost"`
+	PostgresPort                string                       `yaml:"postgresPort"`
+	PostgresDBName              string                       `yaml:"postgresDbName"`
+	PostgresOptions             string                       `yaml:"postgresOptions"`
+	JWTCookieDomain             string                       `yaml:"jwtCookieDomain"`
+	JWTCookieMaxAgeSeconds      int                          `yaml:"jwtCookieMaxAgeSeconds"`
+	JWTCookieSetSecure          bool                         `yaml:"jwtCookieSetSecure"` // sets the "secure" flag for the jwt cookie
+	JWTCookieName               string                       `yaml:"jwtCookieName"`      // sets the "secure" flag for the jwt cookie
+	RuntimeOauthState           string                       // will be set later
+	FusionAuthClient            *fusionauth.FusionAuthClient // will be set later
+	OauthConfig                 *oauth2.Config               // will be set later
+	OauthStr                    string                       // will be set later
+	CodeVerif                   string                       // will be set later
+	CodeChallenge               string                       // will be set later
+	AuthCodeURL                 string                       // will be set later
+}
+
+type CompleteConfig struct {
+	Applications []Config     `yaml:"apps"`
+	Global       GlobalConfig `yaml:"global"`
 }
 
 // LoadConfig reads from a provided yaml-formatted configuration filename
-func LoadConfig() (conf Config, err error) {
+func LoadConfigYaml() (conf CompleteConfig, err error) {
+	confFile := "/res/config.yml"
+	envConfFile := os.Getenv("config")
+	if envConfFile != "" {
+		confFile = envConfFile
+	}
+
+	// read from config file
+	confData, err := ioutil.ReadFile(confFile)
+	if err != nil {
+		return conf, fmt.Errorf("failed to read config file %v: %v", confFile, err.Error())
+	}
+
+	err = yaml.Unmarshal(confData, &conf)
+	if err != nil {
+		return conf, fmt.Errorf("failed to parse config file %v: %v", confFile, err.Error())
+	}
+
+	return conf, nil
+}
+
+// LoadConfig reads from a provided yaml-formatted configuration filename
+// TODO: Figureout why this doesn't support the config structs from above.
+//       For some reason the "apps" section is empty. Could be related to the
+//       un-yaml-annotated sections in the config.
+func LoadConfig() (conf CompleteConfig, err error) {
 	err = viper.BindEnv("config")
 	if err != nil {
 		return conf, fmt.Errorf("failed to bind config env: %v", err.Error())
@@ -55,4 +101,14 @@ func LoadConfig() (conf Config, err error) {
 	}
 
 	return conf, nil
+}
+
+func (conf *CompleteConfig) GetConfigForDomain(domain string) (Config, bool) {
+	for _, app := range conf.Applications {
+		if app.Domain == domain {
+			return app, true
+		}
+	}
+
+	return Config{}, false
 }
