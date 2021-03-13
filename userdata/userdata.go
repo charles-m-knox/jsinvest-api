@@ -34,6 +34,15 @@ func SetUserData(conf config.Config, id string, userData interface{}) error {
 
 	_, err = conn.Exec(
 		context.Background(),
+		"CREATE TABLE IF NOT EXISTS userdata (id VARCHAR ( 36 ) PRIMARY KEY, user_data_json TEXT);",
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to create table: %v", err.Error())
+	}
+
+	_, err = conn.Exec(
+		context.Background(),
 		"insert into userdata(id, user_data_json) values($1, $2) on conflict (id) do update set user_data_json = EXCLUDED.user_data_json",
 		id,
 		string(userDataBytes),

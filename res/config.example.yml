@@ -4,9 +4,10 @@ fusionAuthHost: http://fusionauth:9011
 fusionAuthPublicHost: http://localhost:9011
 fusionAuthAPIKey: OCnxf7Vf40WzZM_qg1ut1-Oy-gFaQsriypp4MLRzaDCyZ96kXKlibk5x
 fusionAuthAppID: 39624626-b0b0-46d6-9902-3967418ee1c5
-fusionAuthOauthRedirectURL: http://localhost:8080/oauth-callback
+fusionAuthOauthRedirectURL: http://localhost:8080/auth/oauth-cb
 fusionAuthOauthClientID: 39624626-b0b0-46d6-9902-3967418ee1c5
 fusionAuthOauthClientSecret: JJ_WwJXr7o9AFuQ29mZQEfsxCXdbQn0FIbVjBiMtJH4
+fusionAuthTenantID: e4fdaffa-6177-3449-3517-f7b8c94baf8d
 
 bindAddr: 0.0.0.0
 bindPort: 8080
@@ -19,3 +20,8 @@ postgresPort: 5432
 postgresDbName: postgres
 postgresOptions: sslmode=disable
 # postgresOptions: sslmode=verify-full
+
+jwtCookieDomain: "localhost"
+jwtCookieMaxAgeSeconds: 3600
+jwtCookieSetSecure: true
+jwtCookieName: "s"

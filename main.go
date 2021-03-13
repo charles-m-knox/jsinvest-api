@@ -1,10 +1,9 @@
 package main
 
 import (
-	"fa-middleware/auth"
 	"fa-middleware/config"
-	"fa-middleware/models"
-	"fa-middleware/userdata"
+	"fa-middleware/htmltemplates"
+	"fa-middleware/routes"
 
 	"fmt"
 	"log"
@@ -76,7 +75,17 @@ func main() {
 			"message": "pong",
 		})
 	})
-	r.GET("/login", func(c *gin.Context) {
+	r.GET("/pages/makepayment", func(c *gin.Context) {
+		htmlstr, err := htmltemplates.GetPaymentTemplate()
+		if err != nil {
+			log.Printf("error getting template: %v", err.Error())
+			c.Data(500, "text/plain", []byte("server error"))
+			return
+		}
+
+		c.Data(200, "text/html", []byte(htmlstr))
+	})
+	r.GET("/auth/login", func(c *gin.Context) {
 		url := oauthc.AuthCodeURL(
 			oauthstr,
 			oauth2.SetAuthURLParam("response_type", "code"),
@@ -90,61 +99,18 @@ func main() {
 			url,
 		)
 	})
-	r.GET("/oauth-callback", func(c *gin.Context) {
-		// https://github.com/gin-gonic/examples/blob/master/basic/main.go
-		err = c.Request.ParseForm()
-		if err != nil {
-			log.Printf("oauth-callback failed to process form: %v", err.Error())
-			c.JSON(403, models.OauthState{})
-			return
-		}
-
-		receivedOauthState, ok := c.Request.Form["state"]
-		if !ok {
-			c.JSON(403, models.OauthState{})
-			return
-		}
-		receivedOauthCode, ok := c.Request.Form["code"]
-		if !ok {
-			c.JSON(403, models.OauthState{})
-			return
-		}
-
-		if len(receivedOauthState) != 1 || len(receivedOauthCode) != 1 {
-			c.JSON(403, models.OauthState{})
-			return
-		}
-
-		oauths := models.OauthState{
-			Code:     receivedOauthCode[0],
-			State:    receivedOauthState[0],
-			Verifier: codeVerif.String(),
-		}
-
-		// log.Printf("post form array: %v", c.Request.Form)
-
-		user, err := auth.Login(conf, fa, oauths)
-		if err != nil {
-			log.Printf("err login: %v", err.Error())
-			c.JSON(403, models.OauthState{})
-			return
-		}
-
-		err = userdata.SetUserData(
-			conf,
-			user.Id,
-			struct {
-				TestVal string `yaml:"testVal"`
-			}{
-				"test1234!",
-			},
-		)
-
-		if err != nil {
-			log.Fatalf("error setting user data: %v", err.Error())
-		}
-
-		c.JSON(200, user)
+	// Not needed - instead, use /logout (directly on the fusionauth host)
+	// r.GET("/auth/logout", func(c *gin.Context) {
+	// 	routes.GetAuthLogout(c, conf, fa)
+	// })
+	r.GET("/api/currentuser/email", func(c *gin.Context) {
+		routes.GetAPICurrentUserEmail(c, conf, fa)
+	})
+	r.GET("/pages/welcome", func(c *gin.Context) {
+		routes.LoggedIn(c, conf, fa)
+	})
+	r.GET("/auth/oauth-cb", func(c *gin.Context) {
+		routes.OauthCallback(c, conf, fa, codeVerif.String())
 	})
 	err = r.Run(
 		fmt.Sprintf(

@@ -13,6 +13,7 @@ This repository contains the building blocks for a FusionAuth-based middleware l
   - [Managing the database](#managing-the-database)
   - [Needed features](#needed-features)
   - [Schema discussion](#schema-discussion)
+    - [Table definition](#table-definition)
 
 ## Getting started
 
@@ -31,7 +32,7 @@ For the first time:
 4. Set the bind ports and other options in `.env` and in `./res/config.yml` based on their `.example` variants.
 5. Set the secrets from the application in `./res/config.yml` accordingly
 6. Run `make run-middleware` to run the middleware now that it's been properly configured
-7. Visit `http://localhost:8080/login` in your browser, or whatever the port/bind address is for your setup
+7. Visit `http://localhost:8080/auth/login` in your browser, or whatever the port/bind address is for your setup
 8. Follow the login/registration workflow, brokered by FusionAuth
 9. Observe that the callback URL has been hit after logging in
 
@@ -44,6 +45,7 @@ These are the basic steps to get this middleware up and running. Up next is to g
 * https://fusionauth.io/docs/v1/tech/oauth/endpoints/
 * https://fusionauth.io/docs/v1/tech/example-apps/go/
 * https://fusionauth.io/blog/2020/06/17/building-cli-app-with-device-grant-and-golang/
+* https://fusionauth.io/docs/v1/tech/core-concepts/integration-points/ - **important** - showcases the pages that you don't have to deal with 😉
 
 ## Fusion Auth
 
@@ -88,8 +90,10 @@ These associations can be stored in a few locations:
 
 It might be smartest to store all three of these for the sake of ensuring that the data is always viewable on each platform - Stripe, FusionAuth, and queryable locally without having to hammer away at a 3rd party API (FusionAuth won't be third party since it's local, but the API itself is subject to third party design).
 
-| `id`                                   | `tenant_id`                            | `stripe_cust_id`     |
-| -------------------------------------- | -------------------------------------- | -------------------- |
-| `370df073-c2e3-41f9-a64f-32866a48b972` | `cbb8cd3a-aed7-413c-a65f-40acf4034fc3` | `cus_J6Tc1xnIxNW5BG` |
-|                                        |                                        |                      |
-|                                        |                                        |                      |
+### Table definition
+
+This is an initial draft of a possible database schema:
+
+| `id`                                   | `tenant_id`                            | `app_id`                               | `stripe_cust_id`     | `field`    | `value` | `updated_at` |
+| -------------------------------------- | -------------------------------------- | -------------------------------------- | -------------------- | ---------- | ------- | ------------ |
+| `370df073-c2e3-41f9-a64f-32866a48b972` | `cbb8cd3a-aed7-413c-a65f-40acf4034fc3` | `6e4b577c-6752-46db-9c42-3bd86858c59d` | `cus_J6Tc1xnIxNW5BG` | `settings` | `"{}"`  | `<date>`     |

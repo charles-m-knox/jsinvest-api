@@ -18,6 +18,7 @@ type Config struct {
 	FusionAuthOauthRedirectURL  string `yaml:"fusionAuthOauthRedirectURL"`
 	FusionAuthOauthClientID     string `yaml:"fusionAuthOauthClientID"`
 	FusionAuthOauthClientSecret string `yaml:"fusionAuthOauthClientSecret"`
+	FusionAuthTenantID          string `yaml:"fusionAuthTenantID"`
 	BindAddr                    string `yaml:"bindAddr"`
 	BindPort                    int    `yaml:"bindPort"`
 	BindPortExternal            int    `yaml:"bindPortExternal"`
@@ -27,6 +28,10 @@ type Config struct {
 	PostgresPort                string `yaml:"postgresPort"`
 	PostgresDBName              string `yaml:"postgresDbName"`
 	PostgresOptions             string `yaml:"postgresOptions"`
+	JWTCookieDomain             string `yaml:"jwtCookieDomain"`
+	JWTCookieMaxAgeSeconds      int    `yaml:"jwtCookieMaxAgeSeconds"`
+	JWTCookieSetSecure          bool   `yaml:"jwtCookieSetSecure"` // sets the "secure" flag for the jwt cookie
+	JWTCookieName               string `yaml:"jwtCookieName"`      // sets the "secure" flag for the jwt cookie
 }
 
 // LoadConfig reads from a provided yaml-formatted configuration filename

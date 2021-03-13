@@ -15,6 +15,7 @@ services:
       - BIND_PORT_EXTERNAL=${BIND_PORT_EXTERNAL}
     volumes:
       - ./res/config.yml:/res/config.yml:ro
+      - ./templates:/templates
     restart: unless-stopped
     logging:
       driver: "json-file"
