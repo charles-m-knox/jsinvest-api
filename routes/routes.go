@@ -6,6 +6,7 @@ import (
 	"fa-middleware/htmltemplates"
 	"fa-middleware/models"
 	"fa-middleware/userdata"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -14,6 +15,33 @@ import (
 	"github.com/FusionAuth/go-client/pkg/fusionauth"
 	"github.com/gin-gonic/gin"
 )
+
+// GetUserFromGin extracts the user via the JWT HttpOnly cookie and will
+// set the gin response if there's an error
+func GetUserFromGin(c *gin.Context, conf config.Config) (user fusionauth.User, err error) {
+	cookies := c.Request.Cookies()
+	jwt := ""
+	for _, cookie := range cookies {
+		if cookie.Name == conf.JWTCookieName {
+			jwt = cookie.Value
+			break
+		}
+	}
+
+	if jwt == "" {
+		c.Data(403, "text/plain", []byte("unauthorized"))
+		return user, fmt.Errorf("unauthorized")
+	}
+
+	// check if the user has a valid jwt
+	user, err = auth.GetUserByJWT(conf, jwt)
+	if err != nil {
+		c.Data(403, "text/plain", []byte("unauthorized"))
+		return user, fmt.Errorf("unauthorized")
+	}
+
+	return user, nil
+}
 
 func LoggedIn(c *gin.Context, conf config.Config, fa *fusionauth.FusionAuthClient) {
 	cookies := c.Request.Cookies()

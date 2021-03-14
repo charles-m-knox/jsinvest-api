@@ -35,25 +35,23 @@ func SetUserData(conf config.Config, userData models.UserData) error {
 
 	_, err = conn.Exec(
 		context.Background(),
-		"CREATE TABLE IF NOT EXISTS user_data (user_id VARCHAR ( 36 ), app_id VARCHAR ( 36 ), tenant_id VARCHAR ( 36 ), stripe_customer_id VARCHAR ( 18 ), field VARCHAR ( 128 ), value TEXT, updated_at bigint);",
-		// "CREATE TABLE IF NOT EXISTS user_data (user_id VARCHAR ( 36 ) PRIMARY KEY, app_id VARCHAR ( 36 ), tenant_id VARCHAR ( 36 ), stripe_customer_id VARCHAR ( 18 ), field VARCHAR ( 128 ), value TEXT, updated_at DATE NOT NULL DEFAULT CURRENT_DATE);",
+		"CREATE TABLE IF NOT EXISTS user_data (user_id VARCHAR ( 36 ), app_id VARCHAR ( 36 ), tenant_id VARCHAR ( 36 ), field VARCHAR ( 128 ), value TEXT, updated_at bigint);",
+		// "CREATE TABLE IF NOT EXISTS user_data (user_id VARCHAR ( 36 ) PRIMARY KEY, app_id VARCHAR ( 36 ), tenant_id VARCHAR ( 36 ), field VARCHAR ( 128 ), value TEXT, updated_at DATE NOT NULL DEFAULT CURRENT_DATE);",
 	)
 
 	if err != nil {
 		return fmt.Errorf("failed to create table: %v", err.Error())
 	}
 
-	// TODO: set stripe customer ID in a special scenario
 	// TODO: properly use conflict assertion
 	// "insert into user_data(user_id, app_id, tenant_id, field, value) values($1, $2, $3, $5, $6) on conflict (user_id, app_id, tenant_id, field) do update set value = EXCLUDED.value",
 	// https://www.prisma.io/dataguide/postgresql/inserting-and-modifying-data/insert-on-conflict
 	_, err = conn.Exec(
 		context.Background(),
-		"insert into user_data(user_id, app_id, tenant_id, stripe_customer_id, field, value, updated_at) values($1, $2, $3, $4, $5, $6, $7)",
+		"insert into user_data(user_id, app_id, tenant_id, field, value, updated_at) values($1, $2, $3, $4, $5, $6)",
 		userData.UserID,
 		userData.AppID,
 		userData.TenantID,
-		userData.StripeCustomerID,
 		userData.Field,
 		userData.Value,
 		userData.UpdatedAt,

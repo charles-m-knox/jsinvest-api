@@ -20,7 +20,6 @@
         $(document).ready(function () {
             $.get("/api/currentuser/email", function (data) {
                 $("#user-email").html(data);
-                alert(data);
             });
 
             $("#set-data-btn").click(function () {
@@ -86,6 +85,9 @@
                 </p>
                 <p>
                     Using your JWT, your email address is: <span id="user-email">...</span>
+                </p>
+                <p>
+                    The Stripe public key is {{.Conf.StripePublicKey}}.
                 </p>
                 <p>
                     <button id="set-data-btn" class="btn btn-primary mr-3">Set some data</button>

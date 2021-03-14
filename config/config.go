@@ -23,6 +23,7 @@ type GlobalConfig struct {
 
 type Config struct {
 	Domain                      string                       `yaml:"domain"`
+	FullDomainURL               string                       `yaml:"fullDomainURL"`
 	FusionAuthHost              string                       `yaml:"fusionAuthHost"`       // "http://fusionauth:9011"
 	FusionAuthPublicHost        string                       `yaml:"fusionAuthPublicHost"` // "http://localhost:9011"
 	FusionAuthAPIKey            string                       `yaml:"fusionAuthAPIKey"`
@@ -41,6 +42,8 @@ type Config struct {
 	JWTCookieMaxAgeSeconds      int                          `yaml:"jwtCookieMaxAgeSeconds"`
 	JWTCookieSetSecure          bool                         `yaml:"jwtCookieSetSecure"` // sets the "secure" flag for the jwt cookie
 	JWTCookieName               string                       `yaml:"jwtCookieName"`      // sets the "secure" flag for the jwt cookie
+	StripePublicKey             string                       `yaml:"stripePublicKey"`
+	StripeSecretKey             string                       `yaml:"stripeSecretKey"`
 	RuntimeOauthState           string                       // will be set later
 	FusionAuthClient            *fusionauth.FusionAuthClient // will be set later
 	OauthConfig                 *oauth2.Config               // will be set later

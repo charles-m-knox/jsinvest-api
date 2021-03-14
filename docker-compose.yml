@@ -16,6 +16,7 @@ services:
     volumes:
       - ./res/config.yml:/res/config.yml:ro
       - ./templates:/templates
+      - ./assets:/assets
     restart: unless-stopped
     logging:
       driver: "json-file"

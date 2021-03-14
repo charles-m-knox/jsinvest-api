@@ -59,6 +59,11 @@ Useful content for Postgres:
 * https://www.postgresqltutorial.com/postgresql-date/
 * https://www.prisma.io/dataguide/postgresql/inserting-and-modifying-data/insert-on-conflict
 
+Useful docs for Stripe:
+
+* https://stripe.com/docs/payments/integration-builder
+* https://stripe.com/docs/api/authentication
+
 ## Fusion Auth
 
 Examples relating to FusionAuth directly.
@@ -86,13 +91,14 @@ Using `adminer`, which is included in the docker compose file, you can navigate 
 
 ## Schema discussion
 
-FusionAuth does offer a "user data" key-value storage, which is great, but I think it's more important to have a postgresql database that is dedicated to this purpose. We can guarantee scalable queries instead of having to deal with an extra API.
+FusionAuth does offer a "user data" key-value storage, which is great, but I think it's more important to have a separate postgresql database that is dedicated to this purpose. We can guarantee scalable queries instead of having to deal with an extra API.
 
-There are two (or three) critical identifiers that need to be handled:
+There are a few critical identifiers that need to be handled _somewhere_ in an app like this:
 
 * The Stripe customer id, such as `cus_J6Tc1xnIxNW5BG`
 * The FusionAuth user id, such as `370df073-c2e3-41f9-a64f-32866a48b972`
-* The tenant ID, for multi-tenancy scenarios where we have many apps landed on a single FusionAuth instance, such as `cbb8cd3a-aed7-413c-a65f-40acf4034fc3`
+* The application ID, for multi-application scenarios where we have many apps landed on a single FusionAuth instance, such as `6e4b577c-6752-46db-9c42-3bd86858c59d`
+* The tenant ID, for multi-tenancy scenarios where we have many tenants landed on a single FusionAuth instance, such as `cbb8cd3a-aed7-413c-a65f-40acf4034fc3`
 
 These associations can be stored in a few locations:
 
@@ -100,15 +106,15 @@ These associations can be stored in a few locations:
 * A customer in Stripe can have arbitrary metadata, so we should put the tenant ID and user ID there
 * All three can be stored in a local postgres DB
 
-It might be smartest to store all three of these for the sake of ensuring that the data is always viewable on each platform - Stripe, FusionAuth, and queryable locally without having to hammer away at a 3rd party API (FusionAuth won't be third party since it's local, but the API itself is subject to third party design).
+It might be smartest to store the data in all three of these for the sake of ensuring that the data is always viewable on each platform - Stripe, FusionAuth, and queryable locally without having to hammer away at a 3rd party API (FusionAuth won't be third party since it's local, but the API itself is subject to third party design). However, it is worth pointing out that the most important and reliable place to store these unique identifiers is within Stripe as metadata tags.
 
 ### Table definition
 
 This is an initial draft of a possible database schema:
 
-| `id`                                   | `app_id`                               | `tenant_id`                            | `stripe_cust_id`     | `field`    | `value` | `updated_at` |
-| -------------------------------------- | -------------------------------------- | -------------------------------------- | -------------------- | ---------- | ------- | ------------ |
-| `370df073-c2e3-41f9-a64f-32866a48b972` | `6e4b577c-6752-46db-9c42-3bd86858c59d` | `cbb8cd3a-aed7-413c-a65f-40acf4034fc3` | `cus_J6Tc1xnIxNW5BG` | `settings` | `"{}"`  | `<date>`     |
+| `id`                                   | `app_id`                               | `tenant_id`                            | `field`    | `value` | `updated_at` |
+| -------------------------------------- | -------------------------------------- | -------------------------------------- | ---------- | ------- | ------------ |
+| `370df073-c2e3-41f9-a64f-32866a48b972` | `6e4b577c-6752-46db-9c42-3bd86858c59d` | `cbb8cd3a-aed7-413c-a65f-40acf4034fc3` | `settings` | `"{}"`  | `<date>`     |
 
 ## TODO
 

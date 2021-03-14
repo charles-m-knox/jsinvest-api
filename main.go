@@ -3,6 +3,7 @@ package main
 import (
 	"fa-middleware/config"
 	"fa-middleware/htmltemplates"
+	"fa-middleware/payments"
 	"fa-middleware/routes"
 
 	"fmt"
@@ -91,18 +92,81 @@ func main() {
 		app, ok := conf.GetConfigForDomain(c.Request.Host)
 		if !ok {
 			c.Data(404, "text/plain", []byte("not found"))
+			return
 		}
 		log.Printf("matched app id: %v", app.FusionAuthAppID)
 		c.JSON(200, gin.H{"message": "pong"})
 	})
+	r.GET("/assets/:file", func(c *gin.Context) {
+		fileName, ok := c.Params.Get("file")
+		log.Printf("/assets/t/: %v", fileName)
+		if !ok {
+			c.Data(404, "text/plain", []byte("not found"))
+			return
+		}
+		c.File(fmt.Sprintf("assets/%v", fileName))
+	})
+	r.GET("/pages/t/:file", func(c *gin.Context) {
+		fileName, ok := c.Params.Get("file")
+		log.Printf("/pages/t/: %v", fileName)
+		if !ok {
+			c.Data(404, "text/plain", []byte("not found"))
+			return
+		}
+		app, ok := conf.GetConfigForDomain(c.Request.Host)
+		if !ok {
+			c.Data(404, "text/plain", []byte("not found"))
+			return
+		}
+		user, err := routes.GetUserFromGin(c, app) // will set the gin response if there's an error
+		if err != nil {
+			return
+		}
+		htmlstr, err := htmltemplates.GetTemplateByName(app, user, fileName)
+		if err != nil {
+			log.Printf("template failure for file %v: %v", fileName, err.Error())
+			c.Data(404, "text/plain", []byte("not found"))
+			return
+		}
+		c.Data(200, "text/html", []byte(htmlstr))
+	})
+	r.POST("/api/create-checkout-session", func(c *gin.Context) {
+		app, ok := conf.GetConfigForDomain(c.Request.Host)
+		if !ok {
+			c.Data(404, "text/plain", []byte("not found"))
+			return
+		}
+		user, err := routes.GetUserFromGin(c, app) // will set the gin response if there's an error
+		if err != nil {
+			return
+		}
+		err = payments.CreateCheckoutSession(c, app) // will set the gin response unless there's an error
+		if err != nil {
+			log.Printf("failed to create checkout session for user %v: %v", user.Id, err.Error())
+			c.Data(500, "text/plain", []byte("server error"))
+			return
+		}
+	})
 	r.GET("/pages/makepayment", func(c *gin.Context) {
-		htmlstr, err := htmltemplates.GetPaymentTemplate()
+		app, ok := conf.GetConfigForDomain(c.Request.Host)
+		if !ok {
+			c.Data(404, "text/plain", []byte("not found"))
+			return
+		}
+		htmlstr, err := htmltemplates.GetPaymentTemplate(app)
 		if err != nil {
 			log.Printf("error getting template: %v", err.Error())
 			c.Data(500, "text/plain", []byte("server error"))
 			return
 		}
 		c.Data(200, "text/html", []byte(htmlstr))
+	})
+	r.GET("/pages/welcome", func(c *gin.Context) {
+		app, ok := conf.GetConfigForDomain(c.Request.Host)
+		if !ok {
+			c.Data(404, "text/plain", []byte("not found"))
+		}
+		routes.LoggedIn(c, app, app.FusionAuthClient)
 	})
 	r.GET("/auth/login", func(c *gin.Context) {
 		app, ok := conf.GetConfigForDomain(c.Request.Host)
@@ -117,13 +181,6 @@ func main() {
 			c.Data(404, "text/plain", []byte("not found"))
 		}
 		routes.GetAPICurrentUserEmail(c, app, app.FusionAuthClient)
-	})
-	r.GET("/pages/welcome", func(c *gin.Context) {
-		app, ok := conf.GetConfigForDomain(c.Request.Host)
-		if !ok {
-			c.Data(404, "text/plain", []byte("not found"))
-		}
-		routes.LoggedIn(c, app, app.FusionAuthClient)
 	})
 	r.POST("/api/mutate", func(c *gin.Context) {
 		routes.PostMutation(c, conf)

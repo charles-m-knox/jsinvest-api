@@ -2,6 +2,7 @@
 
 apps:
   - domain: localhost:8080
+    fullDomainURL: http://localhost:8080
     fusionAuthHost: http://fusionauth:9011
     fusionAuthPublicHost: http://localhost:9011
     fusionAuthAPIKey: OCnxf7Vf40WzZM_qg1ut1-Oy-gFaQsriypp4MLRzaDCyZ96kXKlibk5x
@@ -21,6 +22,8 @@ apps:
     jwtCookieMaxAgeSeconds: 3600
     jwtCookieSetSecure: true
     jwtCookieName: "s"
+    stripePublicKey: asdf
+    stripeSecretKey: asdf
 
 global:
   bindAddr: 0.0.0.0

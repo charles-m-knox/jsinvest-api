@@ -15,11 +15,10 @@ type PostMutationBody struct {
 }
 
 type UserData struct {
-	UserID           string
-	AppID            string
-	TenantID         string
-	StripeCustomerID string
-	Field            string
-	Value            string
-	UpdatedAt        int64
+	UserID    string
+	AppID     string
+	TenantID  string
+	Field     string
+	Value     string
+	UpdatedAt int64
 }
