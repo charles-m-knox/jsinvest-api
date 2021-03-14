@@ -185,6 +185,19 @@ func main() {
 	r.POST("/api/mutate", func(c *gin.Context) {
 		routes.PostMutation(c, conf)
 	})
+	r.GET("/api/products", func(c *gin.Context) {
+		app, ok := conf.GetConfigForDomain(c.Request.Host)
+		if !ok {
+			c.Data(404, "text/plain", []byte("not found"))
+		}
+		products, err := payments.GetProducts(app)
+		if err != nil {
+			log.Printf("/api/products failure: %v", err.Error())
+			c.Data(500, "text/plain", []byte("server error"))
+			return
+		}
+		c.JSON(200, products)
+	})
 	r.GET("/auth/oauth-cb", func(c *gin.Context) {
 		app, ok := conf.GetConfigForDomain(c.Request.Host)
 		if !ok {

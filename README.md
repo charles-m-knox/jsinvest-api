@@ -119,3 +119,6 @@ This is an initial draft of a possible database schema:
 ## TODO
 
 * Add a secret key to better secure other microservices' access to the mutation and user data endpoints
+* create customer with UserID, tenantID, applicationID?
+* list out products from stripe
+* enable one-time purchasing

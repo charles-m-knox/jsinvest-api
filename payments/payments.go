@@ -2,6 +2,8 @@ package payments
 
 import (
 	"fa-middleware/config"
+	"fa-middleware/models"
+	"log"
 
 	"fmt"
 
@@ -32,12 +34,112 @@ import (
 // 	return pi, nil
 // }
 
+// https://stripe.com/docs/api/products/retrieve
+func GetProducts(conf config.Config) (products []models.ProductSummary, err error) {
+	sc := &client.API{}
+	sc.Init(conf.StripeSecretKey, nil)
+	params := &stripe.ProductParams{}
+	for _, stripeProduct := range conf.StripeProducts {
+		product, err := sc.Products.Get(stripeProduct.ProductID, params)
+		if err != nil {
+			return products, fmt.Errorf(
+				"failed to get product from stripe by id %v: %v",
+				stripeProduct.ProductID,
+				err.Error(),
+			)
+		}
+		// validate that the metadata for the product matches
+		productAppID, ok := product.Metadata["appId"]
+		if !ok || productAppID != conf.FusionAuthAppID {
+			log.Printf(
+				"appId=%v from stripe not defined or mismatched from configured app id=%v for product id %v",
+				productAppID,
+				conf.FusionAuthAppID,
+				stripeProduct.ProductID,
+			)
+			continue
+		}
+		productTenantID, ok := product.Metadata["tenantId"]
+		if !ok || productTenantID != conf.FusionAuthTenantID {
+			log.Printf(
+				"tenantId=%v from stripe not defined or mismatched from configured tenant id=%v for product id %v",
+				productTenantID,
+				conf.FusionAuthTenantID,
+				stripeProduct.ProductID,
+			)
+			continue
+		}
+		if !product.Active {
+			continue
+		}
+		imageURL := ""
+		if len(product.Images) > 0 {
+			imageURL = product.Images[0]
+		}
+
+		// get all the prices now
+		productPrices := []models.ProductPrice{}
+		for _, priceID := range stripeProduct.PriceIDs {
+			stripePrice, err := sc.Prices.Get(priceID, &stripe.PriceParams{})
+			if err != nil {
+				log.Printf(
+					"failed to get price id %v for product id %v: %v",
+					priceID,
+					stripeProduct.ProductID,
+					err.Error(),
+				)
+			}
+			if !stripePrice.Active {
+				continue
+			}
+			if stripePrice.Product == nil {
+				log.Printf(
+					"stripe price %v doesn't have corresponding product, skipping",
+					stripePrice.ID,
+				)
+			}
+			if stripePrice.Product.ID != stripeProduct.ProductID {
+				log.Printf(
+					"price id %v and product id %v mismatch, ignoring",
+					stripePrice.ID,
+					stripeProduct.ProductID,
+				)
+			}
+			// the price has been validated; now add it to the list of prices
+			recurringInterval := ""
+			recurringIntervalCount := int64(0)
+			if stripePrice.Recurring != nil {
+				recurringInterval = string(stripePrice.Recurring.Interval)
+				recurringIntervalCount = stripePrice.Recurring.IntervalCount
+			}
+			productPrices = append(productPrices, models.ProductPrice{
+				ID:                     stripePrice.ID,
+				ProductID:              stripeProduct.ProductID,
+				RecurringInterval:      recurringInterval,
+				RecurringIntervalCount: recurringIntervalCount,
+				Price:                  stripePrice.UnitAmount,
+				PriceDecimal:           stripePrice.UnitAmountDecimal,
+				Currency:               string(stripePrice.Currency),
+				Description:            stripePrice.Nickname,
+			})
+		}
+		products = append(products, models.ProductSummary{
+			ID:          stripeProduct.ProductID,
+			Name:        product.Name,
+			Description: product.Description,
+			ImageURL:    imageURL,
+			Prices:      productPrices,
+		})
+	}
+
+	return products, nil
+}
+
 type CreateCheckoutSessionResponse struct {
 	SessionID string `json:"id"`
 }
 
 func CreateCheckoutSession(c *gin.Context, conf config.Config) error {
-	// domain := "http://localhost:4242"
 	sc := &client.API{}
 	sc.Init(conf.StripeSecretKey, nil)
 	params := &stripe.CheckoutSessionParams{

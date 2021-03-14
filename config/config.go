@@ -21,6 +21,11 @@ type GlobalConfig struct {
 	BindPortExternal int    `yaml:"bindPortExternal"`
 }
 
+type StripeProduct struct {
+	ProductID string   `yaml:"productId"`
+	PriceIDs  []string `yaml:"priceIds"`
+}
+
 type Config struct {
 	Domain                      string                       `yaml:"domain"`
 	FullDomainURL               string                       `yaml:"fullDomainURL"`
@@ -44,6 +49,7 @@ type Config struct {
 	JWTCookieName               string                       `yaml:"jwtCookieName"`      // sets the "secure" flag for the jwt cookie
 	StripePublicKey             string                       `yaml:"stripePublicKey"`
 	StripeSecretKey             string                       `yaml:"stripeSecretKey"`
+	StripeProducts              []StripeProduct              `yaml:"stripeProducts"`
 	RuntimeOauthState           string                       // will be set later
 	FusionAuthClient            *fusionauth.FusionAuthClient // will be set later
 	OauthConfig                 *oauth2.Config               // will be set later

@@ -24,6 +24,11 @@ apps:
     jwtCookieName: "s"
     stripePublicKey: asdf
     stripeSecretKey: asdf
+    stripeProducts:
+      - productId: prod_xxxxxxxxxxxxxx # <annotate product here>
+        priceIds:
+          - price_xxxxxxxxxxxxxxxxxxxxxxxx # <annotate price here>
+          - price_xxxxxxxxxxxxxxxxxxxxxxxx # <annotate price here>
 
 global:
   bindAddr: 0.0.0.0
