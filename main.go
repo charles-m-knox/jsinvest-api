@@ -16,9 +16,6 @@ import (
 
 	"github.com/FusionAuth/go-client/pkg/fusionauth"
 	"github.com/gin-gonic/gin"
-	cv "github.com/nirasan/go-oauth-pkce-code-verifier"
-	"github.com/thanhpk/randstr"
-	"golang.org/x/oauth2"
 )
 
 func main() {
@@ -30,19 +27,6 @@ func main() {
 	}
 
 	for i, app := range conf.Apps {
-		// initialize oauth state
-		conf.Apps[i].Oauth2Config.OauthStr = randstr.Hex(16)
-
-		// initialize the code verifier for pkce
-		codeVerif, err := cv.CreateCodeVerifier()
-		if err != nil {
-			log.Fatalf("failed to initialize code verifier: %v", err.Error())
-		}
-		conf.Apps[i].Oauth2Config.CodeVerif = codeVerif.String()
-
-		// Create code_challenge with S256 method
-		conf.Apps[i].Oauth2Config.CodeChallenge = codeVerif.CodeChallengeS256()
-
 		faURL, err := url.Parse(app.FusionAuth.InternalHostURL)
 		if err != nil {
 			log.Fatalf("failed to parse fusionauth url: %v", err.Error())
@@ -56,26 +40,6 @@ func main() {
 			hc,
 			faURL,
 			app.FusionAuth.APIKey,
-		)
-
-		// build out the oauth2 config
-		conf.Apps[i].Oauth2Config.OauthConfig = &oauth2.Config{
-			RedirectURL:  auth.GetOauthRedirectURL(app),
-			ClientID:     app.FusionAuth.OauthClientID,
-			ClientSecret: app.FusionAuth.OauthClientSecret,
-			Scopes:       []string{"openid"},
-			Endpoint: oauth2.Endpoint{
-				AuthURL:   fmt.Sprintf("%v/oauth2/authorize", app.FusionAuth.PublicHostURL),
-				TokenURL:  fmt.Sprintf("%v/oauth2/token", app.FusionAuth.PublicHostURL),
-				AuthStyle: oauth2.AuthStyleInHeader,
-			},
-		}
-
-		conf.Apps[i].Oauth2Config.AuthCodeURL = conf.Apps[i].Oauth2Config.OauthConfig.AuthCodeURL(
-			conf.Apps[i].Oauth2Config.OauthStr,
-			oauth2.SetAuthURLParam("response_type", "code"),
-			oauth2.SetAuthURLParam("code_challenge", conf.Apps[i].Oauth2Config.CodeChallenge),
-			oauth2.SetAuthURLParam("code_challenge_method", "S256"),
 		)
 	}
 
@@ -105,7 +69,7 @@ func main() {
 			return
 		}
 
-		user, err := routes.GetUserFromGin(c, app)
+		user, err := routes.GetUserFromGinJWT(c, app)
 		if err != nil {
 			return
 		}
@@ -139,7 +103,7 @@ func main() {
 			h.Simple404(c)
 			return
 		}
-		user, err := routes.GetUserFromGin(c, app) // will set the gin response if there's an error
+		user, err := routes.GetUserFromGinJWT(c, app) // will set the gin response if there's an error
 		if err != nil {
 			return
 		}
@@ -241,7 +205,7 @@ func main() {
 		}
 		h.Simple200OK(c)
 	})
-	r.GET("/mw/login", func(c *gin.Context) {
+	r.POST("/mw/login", func(c *gin.Context) {
 		app, ok := routes.GetConfigViaRouteOrigin(c, conf)
 		if !ok {
 			h.Simple404(c)
@@ -253,8 +217,7 @@ func main() {
 			log.Printf("user is already logged in")
 			user, err := auth.GetUserByJWT(app, jwt)
 			if err != nil {
-				log.Printf("user is already logged in, failed to get user: %v", err.Error())
-				c.Redirect(301, app.Oauth2Config.AuthCodeURL)
+				log.Printf("user is already logged in, but failed to get user: %v", err.Error())
 				return
 			}
 
@@ -264,7 +227,38 @@ func main() {
 			}
 		}
 		// user is not logged in, so redirect
-		c.Redirect(301, app.Oauth2Config.AuthCodeURL)
+		routes.Login(c, app)
+	})
+	r.OPTIONS("/mw/register", func(c *gin.Context) {
+		_, ok := routes.GetConfigViaRouteOrigin(c, conf)
+		if !ok {
+			h.Simple404(c)
+			return
+		}
+		h.Simple200OK(c)
+	})
+	r.POST("/mw/register", func(c *gin.Context) {
+		app, ok := routes.GetConfigViaRouteOrigin(c, conf)
+		if !ok {
+			h.Simple404(c)
+			return
+		}
+		// check if the user is already logged in
+		jwt := routes.GetJWTFromGin(c, app)
+		if jwt != "" {
+			log.Printf("user is already logged in")
+			user, err := auth.GetUserByJWT(app, jwt)
+			if err != nil {
+				log.Printf("user is already logged in, but failed to get user: %v", err.Error())
+				return
+			}
+
+			if user.Id != "" {
+				c.Data(200, "text/plain", []byte("already logged in"))
+				return
+			}
+		}
+		routes.Register(c, app)
 	})
 	r.OPTIONS("/mw/loggedin", func(c *gin.Context) {
 		_, ok := routes.GetConfigViaRouteOrigin(c, conf)
@@ -303,24 +297,6 @@ func main() {
 			return
 		}
 		c.JSON(200, products)
-	})
-	r.GET("/mw/oauth-cb/:appId", func(c *gin.Context) {
-		appID := c.Params.ByName("appId")
-		if appID == "" {
-			h.Simple404(c)
-			return
-		}
-		app, ok := conf.GetConfigForAppID(appID)
-		if !ok {
-			h.Simple404(c)
-			return
-		}
-		// app, ok := conf.GetConfigForDomain(c.Request.Host)
-		// if !ok {
-		// 	h.Simple404(c)
-		// 	return
-		// }
-		routes.OauthCallback(c, app, app.FusionAuth.Client)
 	})
 	err = r.Run(
 		fmt.Sprintf(

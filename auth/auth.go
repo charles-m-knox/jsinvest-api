@@ -4,64 +4,10 @@ package auth
 
 import (
 	"fa-middleware/config"
-	"fa-middleware/models"
 	"fmt"
 
 	"github.com/FusionAuth/go-client/pkg/fusionauth"
 )
-
-func GetOauthRedirectURL(conf config.App) string {
-	return fmt.Sprintf(
-		"%v/%v",
-		conf.FusionAuth.OauthRedirectURL,
-		conf.FusionAuth.AppID,
-	)
-}
-
-// Login logs in the user using the FusionAuth Go client library
-func Login(conf config.App, fa *fusionauth.FusionAuthClient, oauthState models.OauthState) (user fusionauth.User, jwt string, err error) {
-	// TODO: Use https://fusionauth.io/docs/v1/tech/apis/jwt/#retrieve-refresh-tokens
-	// TODO: to try and retrieve a refresh token and compare it to an HttpOnly
-	// TODO: cookie that contains a refresh token from the gin context
-	// TODO: so that we can automatically grant the user a new JWT based on
-	// TODO: their refresh token
-
-	token, oauthError, err := fa.ExchangeOAuthCodeForAccessTokenUsingPKCE(
-		oauthState.Code,
-		conf.FusionAuth.OauthClientID,
-		conf.FusionAuth.OauthClientSecret,
-		GetOauthRedirectURL(conf),
-		oauthState.Verifier,
-	)
-
-	if err != nil {
-		return user, "", fmt.Errorf(
-			"failed to exchange oauth code for access token via pkce: %v",
-			err.Error(),
-		)
-	}
-
-	if oauthError != nil {
-		return user, "", fmt.Errorf(
-			"failed to exchange oauth code for access token via pkce oauth error: %v",
-			oauthError,
-		)
-	}
-
-	user, err = GetUserByJWT(conf, token.AccessToken)
-	// userResp, errs, err := fa.RetrieveUserUsingJWT(token.AccessToken)
-	// userResp, errs, err := fa.RetrieveUserInfoFromAccessToken(token.AccessToken)
-	if err != nil {
-		return user, "", fmt.Errorf(
-			"failed to retrieve user by jwt: %v",
-			err.Error(),
-		)
-	}
-
-	// log.Printf("%v", userResp.User.Data)
-
-	return user, token.AccessToken, nil
-}
 
 func GetUserByJWT(conf config.App, jwt string) (user fusionauth.User, err error) {
 	userResp, errs, err := conf.FusionAuth.Client.RetrieveUserUsingJWT(jwt)
@@ -83,7 +29,7 @@ func GetUserByJWT(conf config.App, jwt string) (user fusionauth.User, err error)
 
 		return user, fmt.Errorf(
 			"no errors were present while trying to retrieve user by token: %v",
-			errs,
+			errs.Error(),
 		)
 	}
 

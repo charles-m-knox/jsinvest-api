@@ -4,14 +4,9 @@ apps:
   - domain: localhost:3001
     fullDomainURL: http://localhost:3001
     fusionAuth:
-      authCallbackRedirectURL: http://localhost:3001/welcome # can be a relative url too
       internalHostUrl: http://fusionauth:9011
-      publicHostUrl: http://localhost:9011
       apiKey: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
       appID: b0a0f0ab-64ad-4e50-9907-d06dd8901155
-      oauthRedirectURL: http://localhost:8080/mw/oauth-cb
-      oauthClientID: b0a0f0ab-64ad-4e50-9907-d06dd8901155
-      oauthClientSecret: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
       tenantID: 0483de08-d073-4f4c-b49e-0cfbbe0e2808
     jwt:
       cookieDomain: "localhost"

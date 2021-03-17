@@ -8,7 +8,6 @@ import (
 	"os"
 
 	"github.com/FusionAuth/go-client/pkg/fusionauth"
-	"golang.org/x/oauth2"
 	"gopkg.in/yaml.v2"
 )
 
@@ -23,16 +22,11 @@ type GlobalConfig struct {
 }
 
 type FusionAuthConfig struct {
-	AuthCallbackRedirectURL string                       `yaml:"authCallbackRedirectURL"`
-	InternalHostURL         string                       `yaml:"internalHostUrl"` // "http://fusionauth:9011"
-	PublicHostURL           string                       `yaml:"publicHostUrl"`   // "http://localhost:9011"
-	APIKey                  string                       `yaml:"apiKey"`
-	AppID                   string                       `yaml:"appID"`
-	OauthRedirectURL        string                       `yaml:"oauthRedirectURL"`
-	OauthClientID           string                       `yaml:"oauthClientID"`
-	OauthClientSecret       string                       `yaml:"oauthClientSecret"`
-	TenantID                string                       `yaml:"tenantID"`
-	Client                  *fusionauth.FusionAuthClient // in-memory runtime instance of FusionAuth; is set automatically
+	InternalHostURL string                       `yaml:"internalHostUrl"` // "http://fusionauth:9011"
+	APIKey          string                       `yaml:"apiKey"`
+	AppID           string                       `yaml:"appID"`
+	TenantID        string                       `yaml:"tenantID"`
+	Client          *fusionauth.FusionAuthClient // in-memory runtime instance of FusionAuth; is set automatically
 }
 
 type JWTConfig struct {
@@ -50,17 +44,6 @@ type StripeConfig struct {
 	Products          []models.StripeProduct `yaml:"products"`
 }
 
-// Oauth2Config is set automatically when this program starts up, based on
-// values set elsewhere
-type Oauth2Config struct {
-	AuthCodeURL       string         // will be set later
-	CodeChallenge     string         // will be set later
-	CodeVerif         string         // will be set later
-	OauthConfig       *oauth2.Config // will be set later
-	OauthStr          string         // will be set later
-	RuntimeOauthState string         // will be set later
-}
-
 type App struct {
 	Domain                string                  `yaml:"domain"`
 	FullDomainURL         string                  `yaml:"fullDomainURL"`
@@ -68,7 +51,6 @@ type App struct {
 	JWT                   JWTConfig               `yaml:"jwt"`
 	Stripe                StripeConfig            `yaml:"stripe"`
 	APIKey                string                  `yaml:"apiKey"`
-	Oauth2Config          Oauth2Config            // will be set later
 	StripeProductsFromAPI []models.ProductSummary // will be set later
 }
 

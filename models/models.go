@@ -20,6 +20,17 @@ type LoggedInResponse struct {
 	UserFullName string `json:"userFullName"`
 }
 
+type LoginBody struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type RegisterBody struct {
+	Email             string `json:"email"`
+	Password          string `json:"password"`
+	ConfirmedPassword string `json:"confirmedPassword"`
+}
+
 type StripeProduct struct {
 	ProductID string   `yaml:"productId"`
 	PriceIDs  []string `yaml:"priceIds"`

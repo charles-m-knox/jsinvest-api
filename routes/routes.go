@@ -3,14 +3,14 @@ package routes
 import (
 	"fa-middleware/auth"
 	"fa-middleware/config"
+	h "fa-middleware/helpers"
 	"fa-middleware/models"
 	"fa-middleware/payments"
 
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
-
-	"log"
 
 	"github.com/FusionAuth/go-client/pkg/fusionauth"
 	"github.com/gin-gonic/gin"
@@ -25,14 +25,14 @@ func GetConfigViaRouteOrigin(c *gin.Context, conf config.Config) (app config.App
 	if originHeader == "" {
 		referer := c.Request.Header.Get("Referer")
 		if referer == "" {
-			c.Data(404, "text/plain", []byte("not found"))
+			h.Simple404(c)
 			return
 		}
 		originHeader = referer
 	}
 	parsedURL, err := url.Parse(originHeader)
 	if err != nil {
-		c.Data(404, "text/plain", []byte("not found"))
+		h.Simple404(c)
 		return
 	}
 	origin := parsedURL.Host
@@ -41,33 +41,30 @@ func GetConfigViaRouteOrigin(c *gin.Context, conf config.Config) (app config.App
 	if !ok {
 		return app, false
 	}
-	c.Header("Access-Control-Allow-Origin", app.FullDomainURL)
-	c.Header("Access-Control-Allow-Credentials", "true")
+	c.Header(h.AccessControlAllowOrigin, app.FullDomainURL)
+	c.Header(h.AccessControlAllowCredentials, "true")
 	return app, true
 }
 
-// GetUserFromGin extracts the user via the JWT HttpOnly cookie and will
+// GetUserFromGinJWT extracts the user via the JWT HttpOnly cookie and will
 // set the gin response if there's an error
-func GetUserFromGin(c *gin.Context, app config.App) (user fusionauth.User, err error) {
-	cookies := c.Request.Cookies()
-	jwt := ""
-	for _, cookie := range cookies {
-		if cookie.Name == app.JWT.CookieName {
-			jwt = cookie.Value
-			break
-		}
-	}
-
+func GetUserFromGinJWT(c *gin.Context, app config.App) (user fusionauth.User, err error) {
+	jwt := GetJWTFromGin(c, app)
 	if jwt == "" {
-		c.Data(403, "text/plain", []byte("unauthorized"))
-		return user, fmt.Errorf("unauthorized")
+		h.Simple401(c)
+		return user, fmt.Errorf(h.Unauthorized)
 	}
 
 	// check if the user has a valid jwt
 	user, err = auth.GetUserByJWT(app, jwt)
 	if err != nil {
-		c.Data(403, "text/plain", []byte("unauthorized"))
-		return user, fmt.Errorf("unauthorized")
+		h.Simple401(c)
+		return user, fmt.Errorf(h.Unauthorized)
+	}
+
+	if user.Id == "" {
+		h.Simple401(c)
+		return user, fmt.Errorf(h.Unauthorized)
 	}
 
 	return user, nil
@@ -83,6 +80,189 @@ func GetJWTFromGin(c *gin.Context, app config.App) string {
 		}
 	}
 	return ""
+}
+
+func Register(c *gin.Context, app config.App) {
+	register := models.RegisterBody{}
+	err := c.Bind(&register)
+	if err != nil {
+		h.Simple400(c)
+		return
+	}
+	if register.Email == "" || register.Password == "" || register.ConfirmedPassword != register.Password {
+		h.Simple400(c)
+		return
+	}
+	credentials := fusionauth.RegistrationRequest{
+		// GenerateAuthenticationToken: true, // requires application to have this enabled
+		Registration: fusionauth.UserRegistration{
+			ApplicationId: app.FusionAuth.AppID,
+		},
+		User: fusionauth.User{
+			Email: register.Email,
+			SecureIdentity: fusionauth.SecureIdentity{
+				Password: register.Password,
+			},
+		},
+	}
+	// Use FusionAuth Go client to log in the user
+	authResponse, errors, err := app.FusionAuth.Client.Register("", credentials)
+	if err != nil {
+		log.Printf("err on register: %v", err.Error())
+		h.Simple401(c)
+		return
+	}
+
+	if errors != nil {
+		log.Printf("errors on register: %v", errors.Error())
+		h.Simple401(c)
+		return
+	}
+	log.Printf("auth response: %v", authResponse)
+	if authResponse.Token == "" {
+		log.Printf("empty register token")
+		h.Simple401(c)
+		return
+	}
+	// test out the token
+	userResp, errs, err := app.FusionAuth.Client.RetrieveUserUsingJWT(authResponse.Token)
+	if err != nil {
+		log.Printf("failed to retrieve user by token: %v", err.Error())
+		h.Simple401(c)
+		return
+	}
+	if errs != nil {
+		log.Printf("errors on register: %v", errors.Error())
+		h.Simple401(c)
+		return
+	}
+	if userResp.User.Id == "" {
+		log.Printf("empty user id after register")
+		h.Simple401(c)
+		return
+	}
+
+	user := userResp.User
+	resp := models.LoggedInResponse{}
+
+	resp.LoggedIn = true
+	resp.UserID = user.Id
+	resp.UserEmail = user.Email
+	resp.UserFullName = user.FullName
+
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(
+		app.JWT.CookieName,
+		authResponse.Token,
+		app.JWT.CookieMaxAgeSeconds,
+		"/",
+		app.JWT.CookieDomain,
+		app.JWT.CookieSetSecure,
+		true,
+	)
+
+	customerID, err := payments.PropagateUserToStripe(app, user)
+	if err != nil {
+		log.Printf(
+			"failed to push user %v to stripe: %v",
+			user.Id,
+			err.Error(),
+		)
+	}
+
+	log.Printf("new customer id: %v", customerID)
+
+	c.JSON(200, resp)
+}
+
+func Login(c *gin.Context, app config.App) {
+	login := models.LoginBody{}
+	err := c.Bind(&login)
+	if err != nil {
+		h.Simple400(c)
+		return
+	}
+	if login.Email == "" || login.Password == "" {
+		h.Simple400(c)
+		return
+	}
+	credentials := fusionauth.LoginRequest{
+		BaseLoginRequest: fusionauth.BaseLoginRequest{
+			ApplicationId: app.FusionAuth.AppID,
+			IpAddress:     c.ClientIP(),
+			NoJWT:         false,
+		},
+		LoginId:  login.Email,
+		Password: login.Password,
+	}
+	// Use FusionAuth Go client to log in the user
+	authResponse, errors, err := app.FusionAuth.Client.Login(credentials)
+	if err != nil {
+		log.Printf("err on login: %v", err.Error())
+		h.Simple401(c)
+		return
+	}
+
+	if errors != nil {
+		log.Printf("errors on login: %v", errors.Error())
+		h.Simple401(c)
+		return
+	}
+	log.Printf("auth response: %v", authResponse)
+	if authResponse.Token == "" {
+		log.Printf("empty login token")
+		h.Simple401(c)
+		return
+	}
+	// test out the token
+	userResp, errs, err := app.FusionAuth.Client.RetrieveUserUsingJWT(authResponse.Token)
+	if err != nil {
+		log.Printf("failed to retrieve user by token: %v", err.Error())
+		h.Simple401(c)
+		return
+	}
+	if errs != nil {
+		log.Printf("errors on login: %v", errors.Error())
+		h.Simple401(c)
+		return
+	}
+	if userResp.User.Id == "" {
+		log.Printf("empty user id after login")
+		h.Simple401(c)
+		return
+	}
+
+	user := userResp.User
+	resp := models.LoggedInResponse{}
+
+	resp.LoggedIn = true
+	resp.UserID = user.Id
+	resp.UserEmail = user.Email
+	resp.UserFullName = user.FullName
+
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(
+		app.JWT.CookieName,
+		authResponse.Token,
+		app.JWT.CookieMaxAgeSeconds,
+		"/",
+		app.JWT.CookieDomain,
+		app.JWT.CookieSetSecure,
+		true,
+	)
+
+	customerID, err := payments.PropagateUserToStripe(app, user)
+	if err != nil {
+		log.Printf(
+			"failed to push user %v to stripe: %v",
+			user.Id,
+			err.Error(),
+		)
+	}
+
+	log.Printf("new customer id: %v", customerID)
+
+	c.JSON(200, resp)
 }
 
 // LoggedIn allows the frontend to quickly check if the user is logged in
@@ -110,69 +290,4 @@ func LoggedIn(c *gin.Context, app config.App, fa *fusionauth.FusionAuthClient) {
 	resp.UserFullName = user.FullName
 
 	c.JSON(200, resp)
-}
-
-func OauthCallback(c *gin.Context, app config.App, fa *fusionauth.FusionAuthClient) {
-	err := c.Request.ParseForm()
-	if err != nil {
-		log.Printf("oauth-callback failed to process form: %v", err.Error())
-		c.Data(403, "text/plain", []byte("unauthorized"))
-		return
-	}
-
-	oastate, ok := c.Request.Form["state"]
-	if !ok {
-		log.Printf("login: no state")
-		c.Data(403, "text/plain", []byte("unauthorized"))
-		return
-	}
-	oacode, ok := c.Request.Form["code"]
-	if !ok {
-		log.Printf("login: no code")
-		c.Data(403, "text/plain", []byte("unauthorized"))
-		return
-	}
-
-	if len(oastate) != 1 || len(oacode) != 1 {
-		log.Printf("login: didn't receive 1 state and 1 code")
-		c.Data(403, "text/plain", []byte("unauthorized"))
-		return
-	}
-
-	oauths := models.OauthState{
-		Code:     oacode[0],
-		State:    oastate[0],
-		Verifier: app.Oauth2Config.CodeVerif,
-	}
-
-	user, jwt, err := auth.Login(app, fa, oauths)
-	if err != nil {
-		log.Printf("err login: %v", err.Error())
-		c.Data(403, "text/plain", []byte("unauthorized"))
-		return
-	}
-
-	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie(
-		app.JWT.CookieName,
-		jwt,
-		app.JWT.CookieMaxAgeSeconds,
-		"/",
-		app.JWT.CookieDomain,
-		app.JWT.CookieSetSecure,
-		true,
-	)
-
-	_, err = payments.PropagateUserToStripe(app, user)
-	if err != nil {
-		log.Printf(
-			"failed to push user %v to stripe: %v",
-			user.Id,
-			err.Error(),
-		)
-		c.Redirect(301, app.FusionAuth.AuthCallbackRedirectURL)
-		return
-	}
-
-	c.Redirect(301, app.FusionAuth.AuthCallbackRedirectURL)
 }
